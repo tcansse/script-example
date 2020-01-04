@@ -1,0 +1,3 @@
+"num_event"	"diving_dur"	"diving_uw_dur"	"surface_dur"	"chase_dur"	"handling_dur"	"prey_type"	"prey_abundance"	"cons_het"	"cons_het_abundance"	"comments"	"timeconv"	"ind"
+"1"	"1"	7.06896551724138	2.06896551724138	0	5.27586206896552	0	"Unidentifiable (U)"	"1 (Q1)"	"gannet + dolphin"	"2"	"unsuccessful"	2017-12-23 18:15:56	"PD02_PD-13240576-160504-10-091216_movie003"
+"2"	"2"	1.68965517241379	5.72413793103448	0	3	2.72413793103448	"Unidentifiable (U)"	""	"Conspecific (CS)"	"1"	"success"	2017-12-23 18:17:33	"PD02_PD-13240576-160504-10-091216_movie003"
