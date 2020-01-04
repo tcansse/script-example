@@ -1,0 +1,172 @@
+#this script allows to quickly extract data on dives from solomoncoder coding sheet
+#an in and out file can also be found in this repository as an example of what the script does
+#it allowed to quickly obtain the desired output for a large amount (>100) of files
+#some lines of the script are probably not necessary, and adapting it to make other data subsets is not as easy as it could be, but as I only needed this script for myself and only once to process a large amount of files, I didn't bother to optimize it.
+
+
+#make sure you use . and not , as a decimal seperator in the files, else you will run into errors
+#clean workspace
+rm(list=ls())
+#set framerate video
+video.framerate=29
+
+#calculate time of event
+#make sure one of the first lines of the comments contains the time in the following format: GMT:yyyy-mm-dd_HH:MM:SS_CAM:2017-12-23_18:14:37
+#including GMT:yyyy-mm-dd_HH:MM:SS_CAM: is important because else the script will return an NA
+#I always chose video time for calculating the time of the dive as this makes it easier to find the dive back later, if you need to set it to real time you can calculate this later in excell or other spreadsheet
+timeconv_fn<-function(){
+  #this line has been moved
+  #x[x ==""] <-NA
+  #exp.part
+  x$Time <- gsub(",", ".", x$Time)
+  x$Time<-as.numeric(x$Time)
+  NonNAindex <- which(!is.na(x$Comments))
+  firstNonNA <- min(NonNAindex)
+  timeext<-x[firstNonNA,"Comments"]
+  library(stringr)
+  strdates<-str_remove(timeext, "GMT:yyyy-mm-dd_HH:MM:SS_CAM:")
+  dtimes <- str_replace_all(strdates,"_"," ")
+  date2 = strptime(dtimes, format = '%Y-%m-%d %H:%M:%S', 'GMT')
+  x$timeconv=date2 + x$Time
+  #this shouldn't be done, but maybe solves problems of unambiguous format
+  x<<-x
+}
+
+
+#function to make a subset with all frames that are related to prey event
+subset_fn<-function(x){
+  #make a subset
+  #trails = subset(trial, trial$Water.column.behaviour=Diving (D))
+  newdata<- subset(x, x$Water.column.behaviour=="Diving (D)"|x$Water.column.behaviour=="Dive Water"|(x$Water.column.behaviour=="Surface (S)"&x$Foraging.behavior=="Capture/Handling (CH)"))
+  newdata$Time<-as.numeric(newdata$Time)
+  #newdata$Cons.Hetero.abundance<-as.factor(newdata$Cons.Hetero.abundance)
+  
+  
+  #add a prey event number
+  #reason why using less than is because numbering not correct if using newdata[i,"Time"]=(newdata[(i-1),"Time"])+0.04), probably due to undisplayed digits
+  newdata$num<- 1  
+  
+  newdata <- newdata[,c("Time","num","Water.column.behaviour","Prey.present","Prey.abundance","Foraging.behavior","Cons.Hetero","Cons.Hetero.abundance","Direction","Comments","timeconv")]
+  
+#the next part seperates dive events that are longer than one frame apart as seperate events
+  for (i in 2:length(newdata$num)) {  
+    if ((newdata[i,"Time"]-(newdata[(i-1),"Time"])+0.04)<0.1) {  
+      newdata[i,"num"]<-newdata[i-1,"num"]}
+    else newdata$num[i]<-newdata$num[i-1]+1
+  }
+  
+  #sort of timething that works for now, but should be better
+  newdata$Time=newdata$Time/60
+  return(newdata)
+  
+}
+
+
+#make a new row with information about each dive event
+addrow_df <-function(t) {
+  event <- subset(newdata, num == t, select = c("Time","num","Water.column.behaviour","Prey.present","Prey.abundance","Foraging.behavior","Cons.Hetero","Cons.Hetero.abundance","Direction","Comments","timeconv"))
+  #get length of events
+  #diving
+  diving_dur=length(which(event$Water.column.behaviour == "Diving (D)" ))
+  diving_dur_seconds=diving_dur/video.framerate
+  if (length(diving_dur_seconds) == 0) {  
+    diving_dur_seconds<-NA}
+  #diving uw
+  diving_uw_dur=length(which(event$Water.column.behaviour == "Dive Water" ))
+  diving_uw_dur_seconds=diving_uw_dur/video.framerate
+  if (length(diving_uw_dur_seconds) == 0) {  
+    diving_uw_dur_seconds<-NA}
+  #surface
+  surface_dur=length(which(event$Water.column.behaviour == "Surface (S)" ))
+  surface_dur_seconds=surface_dur/video.framerate
+  if (length(surface_dur_seconds) == 0) {  
+    surface_dur_seconds<-NA}
+  #chase
+  chase_dur=length(which(event$Foraging.behavior == "Chase/Strike (CF)" ))
+  chase_dur_seconds=chase_dur/video.framerate
+  if (length(chase_dur_seconds) == 0) {  
+    chase_dur_seconds<-NA}
+  #handling
+  handling_dur=length(which(event$Foraging.behavior == "Capture/Handling (CH)" ))
+  handling_dur_seconds=handling_dur/video.framerate
+  if (length(handling_dur_seconds) == 0) {  
+    handling_dur_seconds<-NA}
+  #get max amount of
+  #event num
+  event_num=which.max(table(event$num))
+  event_num=as.data.frame(event_num)
+  event_num=row.names(event_num)
+  if (length(event_num) == 0) {  
+    event_num<-NA}
+  #prey type
+  Prey_type=which.max(table(event$Prey.present))
+  Prey_type=as.data.frame(Prey_type)
+  Prey_type=row.names(Prey_type)
+  if (length(Prey_type) == 0) {  
+    Prey_type<-NA}
+  #prey abundance
+  Prey_abundance=which.max(table(event$Prey.abundance))
+  Prey_abundance=as.data.frame(Prey_abundance)
+  Prey_abundance=row.names(Prey_abundance)
+  if (length(Prey_abundance) == 0) {  
+    Prey_abundance<-NA}
+  #cons/het
+  Cons_het=which.max(table(event$Cons.Hetero))
+  Cons_het=as.data.frame(Cons_het)
+  Cons_het=row.names(Cons_het)
+  if (length(Cons_het) == 0) {  
+    Cons_het<-NA}
+  #cons/het abundance
+  Cons_het_ab=which.max(table(event$Cons.Hetero.abundance))
+  Cons_het_ab=as.data.frame(Cons_het_ab)
+  Cons_het_ab=row.names(Cons_het_ab)
+  if (length(Cons_het_ab) == 0) {  
+    Cons_het_ab<-NA}
+  #if (length(Cons_het_ab) == 0) {  
+  #  Cons_het_ab<-NA}
+  #comments as string with all comments !!!still make sure all comments included here (maybe success as comment?)
+  Comments=which.max(table(event$Comments))
+  Comments=as.data.frame(Comments)
+  Comments=row.names(Comments)
+  if (length(Comments) == 0) {  
+    Comments<-NA}
+  #timeconv
+  Timeconv=head(event$timeconv,n=1)
+  #include everything in df
+  newRow <- data.frame(num_event=event_num,diving_dur=diving_dur_seconds,diving_uw_dur=diving_uw_dur_seconds,surface_dur=surface_dur_seconds,chase_dur=chase_dur_seconds,handling_dur=handling_dur_seconds,prey_type=Prey_type,prey_abundance=Prey_abundance,cons_het=Cons_het,cons_het_abundance=Cons_het_ab,comments=Comments,timeconv=Timeconv)
+  return(newRow)
+}
+
+
+#makes a dataframe for all of the dives
+make_df<-function(){
+  column.names=c("num_event","diving_dur","diving_uw_dur","surface_dur","chase_dur","handling_dur","prey_type","prey_abundance","cons_het","cons_het_abundance","comments","timeconv")
+  df <- data.frame()
+  for (k in column.names) df[[k]] <- as.character()#make subset for each event
+
+  for (i in 1:tail(newdata$num,n=1)) {  
+    newRow<-addrow_df(i)
+    df <- rbind(df,newRow)
+  }
+  return(df)
+}
+
+
+#set the path as the location of your input files.
+files <- list.files(path="C:/Users/thoma/Desktop/rstudio dingen/trial", pattern="*.txt", full.names=TRUE, recursive=FALSE)
+#setwd("C:/Users/thoma/Desktop/rstudio dingen/trialout")
+
+#in the paste0, set the path as the location where you want your output files. make sure it is different from your input location as the output files have the same name as the input files and will overwrite them
+#loop to go through all files in folder, and write output in other folder
+for (h in files) {
+  x <- read.table(h, header=TRUE, sep = "\t", fill = TRUE) # load file
+  x[x ==""] <-NA
+  timeconv_fn()
+  newdata<<-subset_fn(x)
+  df<-make_df()
+  h<-gsub("^.*/","",h)
+  newfile <- gsub(".txt", ".txt", h)
+  df$ind <- gsub(".txt", "", h)
+  filenames <- paste0("C:/Users/thoma/Desktop/rstudio dingen/trialout/",newfile)
+  write.table(df, filenames,sep = "\t")
+}
